@@ -28,32 +28,17 @@ void generateMarker();
 
 int beginInteration();
 
+const string IMAGE = "image";
+const string VIDEO = "video";
+
 
 class Marker {
 public:
-
-    const string IMAGE = "image";
-    const string VIDEO = "video";
-
-
-    string media_type;//need to be set
-    string media_path;//need to be set
-    string type; //{"single" or combine}
-
-    string function;
-    int slaveId;
-
-    string placeholderFinal_path;
-    string placeholderInicial_path;
 
 
     time_t detectedAt;//need to be set
     time_t lastTimeDetected;
     bool isDetected = false;
-    int delay = 0;//seconds? need to be set
-
-
-    bool toLoop = false;
 
 
     int markerId; //teste
@@ -67,30 +52,6 @@ public:
     Mat image_src;
     bool image_src_loaded = false;
 
-    VideoCapture video;
-
-    bool video_loaded = false;
-
-    int timeToPause = 4;//segundos
-
-    bool playOnMarker() {
-        if (isDetected) {
-            return true;
-        } else {
-            time_t current_time = time(nullptr);
-
-            time_t stopPlayingAt = lastTimeDetected + timeToPause;
-
-            return stopPlayingAt >= current_time;
-        }
-    }
-
-
-    bool showMedia() const {
-        time_t current_time = time(nullptr);
-        time_t showAt = detectedAt + delay;
-        return current_time >= showAt;
-    }
 
     void setDetection() {
         isDetected = true;
@@ -98,6 +59,98 @@ public:
             detectedAt = time(nullptr);
         }
     }
+
+    void setPtsSrc() {
+        pts_src.clear();
+        pts_src.emplace_back(0, 0);
+        pts_src.emplace_back(image_src.cols, 0);
+        pts_src.emplace_back(image_src.cols, image_src.rows);
+        pts_src.emplace_back(0, image_src.rows);
+    }
+};
+
+
+class Config_Marker : public Marker {
+
+public:
+    string media_path;
+
+    string language; //vai definir a linguagem
+
+    bool playOnMarker() {
+        return true;
+    }
+
+    bool showMedia() {
+        return true;
+    }
+
+    void setImgSrc() {
+        if (!image_src_loaded) {
+            image_src = imread(media_path);
+            image_src_loaded = true;
+        }
+    }
+
+};
+
+
+class Media_Marker : public Marker {
+
+public:
+    string media_type;
+    string media_path;
+    string type;
+
+    string function;
+    int slaveId;
+
+    string placeholderFinal_path;
+    string placeholderInicial_path;
+
+    int delay = 0;
+
+    bool toLoop = false;
+
+
+    VideoCapture video;
+    bool video_loaded;
+
+    int timeToStop = 5;
+
+
+    bool stopPlaying() {
+        time_t current_time = time(nullptr);
+
+        time_t stopPlayingAt = lastTimeDetected + timeToStop;
+
+        if (stopPlayingAt < current_time) {
+            if (media_type == VIDEO) {
+                loopVideo();
+            }
+        }
+        return stopPlayingAt < current_time;
+    }
+
+    bool playOnMarker() {
+
+
+        return isDetected;
+
+        if (isDetected) {
+            return true;
+        } else {
+
+
+        }
+    }
+
+    bool showMedia() const {
+        time_t current_time = time(nullptr);
+        time_t showAt = detectedAt + delay;
+        return current_time >= showAt;
+    }
+
 
     void loopVideo() {
         /**
@@ -124,7 +177,9 @@ public:
                  * faz load da frame do video para o image_src
                  * utilizamos a image_src para fazer a homografia
                  * */
-                video >> image_src;
+                if (playOnMarker()) {
+                    video >> image_src;
+                }
 
                 /**
                  * quando acabamos o video verificamos se é para fazer loop
@@ -145,20 +200,13 @@ public:
             }
         }
     }
-
-    void setPtsSrc() {
-        pts_src.clear();
-        pts_src.emplace_back(0, 0);
-        pts_src.emplace_back(image_src.cols, 0);
-        pts_src.emplace_back(image_src.cols, image_src.rows);
-        pts_src.emplace_back(0, image_src.rows);
-    }
 };
+
 
 /**
  * variaveis usadas a nivel global
  */
-Marker markers[256];
+Media_Marker media_markers[256];
 
 Mat homographys[255];
 Mat warpedImages[255];
@@ -169,14 +217,14 @@ Mat imOut;
 
 void computeHomography(int markerId, const Mat &frame) {
 
-    homographys[markerId] = findHomography(markers[markerId].pts_src, markers[markerId].pts_dst);
+    homographys[markerId] = findHomography(media_markers[markerId].pts_src, media_markers[markerId].pts_dst);
 
-    warpPerspective(markers[markerId].image_src, warpedImages[markerId], homographys[markerId], frame.size(),
+    warpPerspective(media_markers[markerId].image_src, warpedImages[markerId], homographys[markerId], frame.size(),
                     INTER_CUBIC);
 
     homography_mask[markerId] = Mat::zeros(frame.rows, frame.cols, CV_8UC1);
 
-    fillConvexPoly(homography_mask[markerId], markers[markerId].pts_dst, Scalar(255, 255, 255), LINE_AA);
+    fillConvexPoly(homography_mask[markerId], media_markers[markerId].pts_dst, Scalar(255, 255, 255), LINE_AA);
 
     homography_element[markerId] = getStructuringElement(MORPH_RECT, Size(5, 5));
 
@@ -202,33 +250,33 @@ void setMarkerProperties(int markerId) {
     json marker_config = ar_config[to_string(markerId)];
 
 
-    markers[markerId].media_path = marker_config["media_path"];
-    markers[markerId].media_type = marker_config["media_type"];
-    markers[markerId].type = marker_config["type"];
+    media_markers[markerId].media_path = marker_config["media_path"];
+    media_markers[markerId].media_type = marker_config["media_type"];
+    media_markers[markerId].type = marker_config["type"];
 
 
     if (marker_config.contains("function")) {
-        markers[markerId].function = marker_config["function"];
+        media_markers[markerId].function = marker_config["function"];
     }
 
     if (marker_config.contains("slaveId")) {
-        markers[markerId].slaveId = marker_config["slaveId"];
+        media_markers[markerId].slaveId = marker_config["slaveId"];
     }
 
     if (marker_config.contains("toLoop")) {
-        markers[markerId].toLoop = marker_config["toLoop"];
+        media_markers[markerId].toLoop = marker_config["toLoop"];
     }
     if (marker_config.contains("placeholderFinal_path")) {
-        markers[markerId].placeholderFinal_path = marker_config["placeholderFinal_path"];
+        media_markers[markerId].placeholderFinal_path = marker_config["placeholderFinal_path"];
     }
     if (marker_config.contains("placeholderInicial_path")) {
-        markers[markerId].placeholderInicial_path = marker_config["placeholderInicial_path"];
+        media_markers[markerId].placeholderInicial_path = marker_config["placeholderInicial_path"];
     }
     if (marker_config.contains("delay")) {
-        markers[markerId].delay = marker_config["delay"];
+        media_markers[markerId].delay = marker_config["delay"];
     }
 
-    markers[markerId].setDetection();
+    media_markers[markerId].setDetection();
 }
 
 
@@ -271,7 +319,7 @@ int beginInteration() {
 
 
     try {
-        cap.open(0);
+        cap.open(1);
 
     } catch (...) {
         cout << "Could not open the input image/video stream" << endl;
@@ -291,7 +339,8 @@ int beginInteration() {
             Mat outputImage = frame.clone();
 
 
-            for (auto &marker : markers) {
+            for (auto &marker : media_markers) {
+
                 marker.isDetected = false;
             }
 
@@ -302,15 +351,15 @@ int beginInteration() {
                     int markerId = markersIds[i];
 
 
-                    if (!markers[markerId].isDetected) {
+                    if (!media_markers[markerId].isDetected) {
                         setMarkerProperties(markerId);
                     }
 
 
-                    markers[markerId].markerIdPosition = i;
-                    markers[markerId].markerId = markerId;
-                    markers[markerId].markerCorners = markerCorners.at(i);
-                    markers[markerId].lastTimeDetected = time(nullptr);
+                    media_markers[markerId].markerIdPosition = i;
+                    media_markers[markerId].markerId = markerId;
+                    media_markers[markerId].markerCorners = markerCorners.at(i);
+                    media_markers[markerId].lastTimeDetected = time(nullptr);
                     //markers[markerId].setImgSrc();
 
                     /**
@@ -349,8 +398,8 @@ int beginInteration() {
                 drawDetectedMarkers(outputImage, markerCorners, markersIds);
             }
 
-            for (auto &marker : markers) {
-                if (marker.playOnMarker() /*marker.isDetected*/) {
+            for (auto &marker : media_markers) {
+                if (!marker.stopPlaying()) {
                     if (marker.type == "single") {
 
                         marker.setImgSrc();
@@ -395,10 +444,10 @@ int beginInteration() {
 
                             int slaveId = marker.slaveId;
 
-                            if (markers[slaveId].isDetected) {
+                            if (media_markers[slaveId].isDetected) {
 
                                 Marker master = marker;
-                                Marker slave = markers[slaveId];
+                                Marker slave = media_markers[slaveId];
 
                                 marker.setImgSrc();
 
@@ -408,19 +457,19 @@ int beginInteration() {
 
                                 refPt1 = markerCorners.at(marker.markerIdPosition).at(0);//ponto superior esquerdo
 //
-                                refPt2.x = markerCorners.at(markers[slaveId].markerIdPosition).at(
+                                refPt2.x = markerCorners.at(media_markers[slaveId].markerIdPosition).at(
                                         1).x;//ponto superior direito
                                 refPt2.y = markerCorners.at(marker.markerIdPosition).at(1).y;//ponto superior direito
 
 
 
-                                refPt3 = markerCorners.at(markers[slaveId].markerIdPosition).at(
+                                refPt3 = markerCorners.at(media_markers[slaveId].markerIdPosition).at(
                                         2); //ponto inferior direito
 
 
 
                                 refPt4.x = markerCorners.at(marker.markerIdPosition).at(3).x; //ponto inferior esquerdo
-                                refPt4.y = markerCorners.at(markers[slaveId].markerIdPosition).at(
+                                refPt4.y = markerCorners.at(media_markers[slaveId].markerIdPosition).at(
                                         3).y; //ponto inferior esquerdo
 
 
