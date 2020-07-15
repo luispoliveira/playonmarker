@@ -1,0 +1,18 @@
+{
+  "2": {
+    "media_path": "../img_1.JPG",
+    "media_type": "image",
+    "type": "combine"
+  },
+  "1": {
+    "media_path": "../uiii.mp4",
+    "media_type": "video",
+    "type": "single",
+    "function": "master",
+    "slaveId": 2,
+    "toLoop": false,
+    "delay": 5,
+    "placeholderFinal_path": "../img_1.JPG",
+    "placeholderInicial_path": "../img_1.JPG"
+  }
+}
