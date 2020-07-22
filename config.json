@@ -1,18 +1,38 @@
 {
-  "2": {
+  "config_markers": [
+    2,5,6
+  ],
+  "media_markers" : [
+    1,4,3
+  ],
+  "4": {
     "media_path": "../img_1.JPG",
     "media_type": "image",
     "type": "combine"
   },
   "1": {
-    "media_path": "../uiii.mp4",
+    "media_path_PT": "../media/videos/uiii.mp4",
+    "media_path_ES": "../media/videos/alan.mp4",
+    "media_path_FR": "../media/videos/birds.mp4",
     "media_type": "video",
     "type": "single",
     "function": "master",
     "slaveId": 2,
-    "toLoop": false,
-    "delay": 5,
-    "placeholderFinal_path": "../img_1.JPG",
-    "placeholderInicial_path": "../img_1.JPG"
+    "toLoop": true,
+    "delay": 0,
+    "placeholderFinal_path": "../media/images/img_1.JPG",
+    "placeholderInicial_path": "../media/images/img_1.JPG"
+  },
+  "2": {
+    "media_path": "../media/images/portugal.jpg",
+    "language" : "PT"
+  },
+  "5" : {
+    "media_path": "../media/images/espanha.jpg",
+    "language" : "ES"
+  },
+  "6": {
+    "media_path": "../media/images/franca.jpg",
+    "language" : "FR"
   }
 }
