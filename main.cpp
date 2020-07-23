@@ -14,6 +14,9 @@
 #include <sstream>
 #include <iostream>
 
+
+#define BITS 8
+
 using json = nlohmann::json;
 
 
@@ -31,6 +34,7 @@ int beginInteration();
 const string IMAGE = "image";
 const string VIDEO = "video";
 const Scalar GREEN(0, 255, 0);
+
 string CURRENT_LANGUAGE = "PT";
 string LAST_LANGUAGE = "";
 
@@ -431,7 +435,7 @@ void generateMarker() {
         Mat markerImage;
         Ptr<cv::aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
         aruco::drawMarker(dictionary, idMarker, 200, markerImage, 1);
-        if (imwrite("markers/marker" + std::to_string(idMarker) + ".png", markerImage)) {
+        if (imwrite("../markers/marker" + std::to_string(idMarker) + ".png", markerImage)) {
             cout << "Marker criado com sucesso. (Verificar diretório markers)" << endl;
         } else {
             cout << "Ocurreu um erro a criar o marker" << endl;
@@ -667,6 +671,58 @@ int beginInteration() {
 }
 
 
+int playMusicBitch() {
+
+    mpg123_handle *mh;
+    unsigned char *buffer;
+    size_t buffer_size;
+    size_t done;
+    int err;
+
+    int driver;
+    ao_device *dev;
+
+    ao_sample_format format;
+    int channels, encoding;
+    long rate;
+
+    /*initializations*/
+    ao_initialize();
+    driver = ao_default_driver_id();
+    mpg123_init();
+    mh = mpg123_new(NULL, &err);
+    buffer_size = mpg123_outblock(mh);
+    buffer = (unsigned char *) malloc(buffer_size * sizeof(unsigned char));
+
+    /*open the file and get the decoding format*/
+    mpg123_open(mh, "../media/sounds/uiii.mp3");
+    mpg123_getformat(mh, &rate, &channels, &encoding);
+
+    /*set the output format and open the output device*/
+    format.bits = mpg123_encsize(encoding) * BITS;
+    format.rate = rate;
+    format.channels = channels;
+    format.byte_format = AO_FMT_NATIVE;
+    format.matrix = 0;
+    dev = ao_open_live(driver, &format, NULL);
+
+    /* decode and play */
+    while(mpg123_read(mh, buffer, buffer_size, &done) == MPG123_OK){
+        ao_play(dev, reinterpret_cast<char *>(buffer), done);
+    }
+
+    /*clean up*/
+    free(buffer);
+    ao_close(dev);
+    mpg123_close(mh);
+    mpg123_delete(mh);
+    mpg123_exit();
+    ao_shutdown();
+
+    return 0;
+}
+
+
 int mainMenu() {
 
     int menuChosen;
@@ -675,6 +731,7 @@ int mainMenu() {
     cout << "1 - Criar marker" << endl;
     cout << "2 - Começar interatividade" << endl;
     cout << "3 - Fechar" << endl;
+    cout << "4 - Testar musica" << endl;
     cout << "Selecione o que deseja fazer:";
 
     cin >> menuChosen;
@@ -690,6 +747,9 @@ int mainMenu() {
             break;
         case 3:
             return 0;
+        case 4:
+            playMusicBitch();
+            break;
         default:
             mainMenu();
             break;
