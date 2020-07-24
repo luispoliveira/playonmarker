@@ -7,15 +7,12 @@
 
 #include <nlohmann/json.hpp>
 
-#include <mpg123.h> //decode mp3
-#include <ao/ao.h> //make sound
+#include <SFML/Audio.hpp>
 
 #include <fstream>
 #include <sstream>
 #include <iostream>
 
-
-#define BITS 8
 
 using json = nlohmann::json;
 
@@ -23,7 +20,7 @@ using json = nlohmann::json;
 using namespace cv;
 using namespace aruco;
 using namespace std;
-
+using namespace sf;
 
 int mainMenu();
 
@@ -126,6 +123,7 @@ public:
     string media_path_FR;
     string type;
 
+
     string function;
     int slaveId;
 
@@ -136,6 +134,11 @@ public:
 
     bool toLoop = false;
 
+
+    Music music;
+    string audio_path = "./media/sounds/uiii.ogg";
+    bool audio_loaded = false;
+    bool audio_playing = false;
 
     VideoCapture video;
     bool video_loaded;
@@ -152,22 +155,15 @@ public:
         if (stopPlayingAt < current_time) {
             if (media_type == VIDEO) {
                 loopVideo();
+                music.stop();
+                audio_playing = false;
             }
         }
         return stopPlayingAt < current_time;
     }
 
     bool playOnMarker() {
-
-
         return isDetected;
-
-        if (isDetected) {
-            return true;
-        } else {
-
-
-        }
     }
 
     bool showMedia() const {
@@ -186,9 +182,14 @@ public:
         video >> image_src;
     }
 
+    void loopSound() {
+        music.setLoop(true);
+    }
+
     void setImgSrc() {
         if (showMedia()) { // para fazer o delay
             if (CURRENT_LANGUAGE != LAST_LANGUAGE) {
+                LAST_LANGUAGE = CURRENT_LANGUAGE;
                 video_loaded = false;
                 image_src_loaded = false;
                 if (CURRENT_LANGUAGE == "PT") {
@@ -215,13 +216,33 @@ public:
                     video.set(CAP_PROP_POS_FRAMES, current_frame);
                     video_loaded = true;
                 }
+
+                /**
+                 * carragr ficheiro de audio
+                 */
+                if (!audio_loaded) {
+                    if (!music.openFromFile(audio_path))
+                        cout << "erro ao carreagr som" << endl;
+                    audio_loaded = true;
+                }
+
+
                 /**
                  * faz load da frame do video para o image_src
                  * utilizamos a image_src para fazer a homografia
                  * */
                 if (playOnMarker()) {
                     video >> image_src;
+                    if (!audio_playing) {
+                        music.play();
+                        audio_playing = true;
+                    }
                     current_frame = video.get(CAP_PROP_POS_FRAMES);
+                } else {
+                    if (audio_playing) {
+                        music.pause();
+                        audio_playing = false;
+                    }
                 }
 
                 /**
@@ -229,8 +250,10 @@ public:
                  */
 
                 if (image_src.empty()) {
-                    if (toLoop) loopVideo();
-
+                    if (toLoop) {
+                        loopVideo();
+                        loopSound();
+                    }
                     if (!(placeholderFinal_path.empty())) {
                         image_src = imread(placeholderFinal_path);
                     }
@@ -307,7 +330,7 @@ string checkMarkerType(int markerId) {
     /**
     * read json
     */
-    ifstream config_json("../config.json");
+    ifstream config_json("./config.json");
     json ar_config;
     config_json >> ar_config;
 
@@ -333,7 +356,7 @@ void setMarkerConfigProperties(int markerId) {
     /**
    * read json
    */
-    ifstream config_json("../config.json");
+    ifstream config_json("./config.json");
     json ar_config;
     config_json >> ar_config;
 
@@ -358,7 +381,7 @@ void setMarkerMediaProperties(int markerId) {
     /**
     * read json
     */
-    ifstream config_json("../config.json");
+    ifstream config_json("./config.json");
     json ar_config;
     config_json >> ar_config;
 
@@ -435,7 +458,7 @@ void generateMarker() {
         Mat markerImage;
         Ptr<cv::aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
         aruco::drawMarker(dictionary, idMarker, 200, markerImage, 1);
-        if (imwrite("../markers/marker" + std::to_string(idMarker) + ".png", markerImage)) {
+        if (imwrite("./markers/marker" + std::to_string(idMarker) + ".png", markerImage)) {
             cout << "Marker criado com sucesso. (Verificar diretório markers)" << endl;
         } else {
             cout << "Ocurreu um erro a criar o marker" << endl;
@@ -553,7 +576,6 @@ int beginInteration() {
                         computeConfigHomography(marker.markerId, frame);
                     } else {
                         if (imTheOnlyOne() && marker.selectLanguage()) {
-                            LAST_LANGUAGE = CURRENT_LANGUAGE;
                             CURRENT_LANGUAGE = marker.language;
                         }
                     }
@@ -574,6 +596,7 @@ int beginInteration() {
                     if (marker.type == "single") {
 
                         marker.setImgSrc();
+
 
                         Point refPt1, refPt2, refPt3, refPt4;
 
@@ -651,11 +674,9 @@ int beginInteration() {
                         } else {
                             //do nothing
                         }
-
                     }
                 }
             }
-
 
             imshow("out", outputImage);
 
@@ -671,58 +692,6 @@ int beginInteration() {
 }
 
 
-int playMusicBitch() {
-
-    mpg123_handle *mh;
-    unsigned char *buffer;
-    size_t buffer_size;
-    size_t done;
-    int err;
-
-    int driver;
-    ao_device *dev;
-
-    ao_sample_format format;
-    int channels, encoding;
-    long rate;
-
-    /*initializations*/
-    ao_initialize();
-    driver = ao_default_driver_id();
-    mpg123_init();
-    mh = mpg123_new(NULL, &err);
-    buffer_size = mpg123_outblock(mh);
-    buffer = (unsigned char *) malloc(buffer_size * sizeof(unsigned char));
-
-    /*open the file and get the decoding format*/
-    mpg123_open(mh, "../media/sounds/uiii.mp3");
-    mpg123_getformat(mh, &rate, &channels, &encoding);
-
-    /*set the output format and open the output device*/
-    format.bits = mpg123_encsize(encoding) * BITS;
-    format.rate = rate;
-    format.channels = channels;
-    format.byte_format = AO_FMT_NATIVE;
-    format.matrix = 0;
-    dev = ao_open_live(driver, &format, NULL);
-
-    /* decode and play */
-    while(mpg123_read(mh, buffer, buffer_size, &done) == MPG123_OK){
-        ao_play(dev, reinterpret_cast<char *>(buffer), done);
-    }
-
-    /*clean up*/
-    free(buffer);
-    ao_close(dev);
-    mpg123_close(mh);
-    mpg123_delete(mh);
-    mpg123_exit();
-    ao_shutdown();
-
-    return 0;
-}
-
-
 int mainMenu() {
 
     int menuChosen;
@@ -731,7 +700,6 @@ int mainMenu() {
     cout << "1 - Criar marker" << endl;
     cout << "2 - Começar interatividade" << endl;
     cout << "3 - Fechar" << endl;
-    cout << "4 - Testar musica" << endl;
     cout << "Selecione o que deseja fazer:";
 
     cin >> menuChosen;
@@ -747,9 +715,6 @@ int mainMenu() {
             break;
         case 3:
             return 0;
-        case 4:
-            playMusicBitch();
-            break;
         default:
             mainMenu();
             break;
