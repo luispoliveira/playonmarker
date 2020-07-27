@@ -136,7 +136,6 @@ public:
     bool toLoop = false;
 
 
-
     string audio_path = "./media/sounds/uiii.ogg";
     bool audio_loaded = false;
     bool audio_playing = false;
@@ -335,25 +334,20 @@ string checkMarkerType(int markerId) {
     json ar_config;
     config_json >> ar_config;
 
-    for (auto &array : ar_config["config_markers"]) {
-        if (markerId == array) {
-            return "CONFIG";
-        }
-    }
+    json marker_config = ar_config[to_string(markerId)];
 
-    for (auto &array : ar_config["media_markers"]) {
-        if (markerId == array) {
-            return "MEDIA";
-        }
+    if (marker_config["marker_type"] == "config") {
+        return "CONFIG";
+    } else if (marker_config["marker_type"] == "media") {
+        return "MEDIA";
     }
-
 
     cout << "O marcador " << markerId << " não esté definido na configuração." << endl;
     return "ERRO";
 
 }
 
-void setMarkerConfigProperties(int markerId) {
+bool setMarkerConfigProperties(int markerId) {
     /**
    * read json
    */
@@ -367,18 +361,26 @@ void setMarkerConfigProperties(int markerId) {
      */
 
     json marker_config = ar_config[to_string(markerId)];
+    if (!marker_config.contains("media_path")) {
+        cout << "Ficheiro de configuração sem \"media_path \" para o marcador : " << markerId << endl;
+        return false;
+    }
     config_markers[markerId].media_path = marker_config["media_path"];
+    if (!marker_config.contains("language")) {
+        cout << "Ficheiro de configuração sem \"language \" para o marcador : " << markerId << endl;
+        return false;
+    }
     config_markers[markerId].language = marker_config["language"];
-
     config_markers[markerId].setDetection();
     config_markers[markerId].isUsed = true;
+    return true;
 }
 
 /**
  * faz set das configurações para marcador do tipo media
  * @param markerId
  */
-void setMarkerMediaProperties(int markerId) {
+bool setMarkerMediaProperties(int markerId) {
     /**
     * read json
     */
@@ -392,21 +394,55 @@ void setMarkerMediaProperties(int markerId) {
 
     json marker_config = ar_config[to_string(markerId)];
 
+    if (!marker_config.contains("media_path")) {
+        cout << "Ficheiro de configuração sem \"media_path \" para o marcador : " << markerId << endl;
+        return false;
+    }
+    json media_path = marker_config["media_path"];
 
-    media_markers[markerId].media_path_PT = marker_config["media_path_PT"];
-    media_markers[markerId].media_path_FR = marker_config["media_path_FR"];
-    media_markers[markerId].media_path_ES = marker_config["media_path_ES"];
+    media_markers[markerId].media_path_PT = media_path["PT"];
+    media_markers[markerId].media_path_FR = media_path["FR"];
+    media_markers[markerId].media_path_ES = media_path["ES"];
 
+    if (!marker_config.contains("media_type")) {
+        cout << "Ficheiro de configuração sem \"media_type \" para o marcador : " << markerId << endl;
+        return false;
+    }
     media_markers[markerId].media_type = marker_config["media_type"];
-    media_markers[markerId].type = marker_config["type"];
 
-
-    if (marker_config.contains("function")) {
-        media_markers[markerId].function = marker_config["function"];
+    if (!marker_config.contains("type")) {
+        cout << "Ficheiro de configuração sem \"type \" para o marcador : " << markerId << endl;
+        return false;
     }
 
-    if (marker_config.contains("slaveId")) {
-        media_markers[markerId].slaveId = marker_config["slaveId"];
+    string type = marker_config["type"];
+    media_markers[markerId].type = type;
+
+    if (type == "single") {
+//do nothing
+    } else if (type == "combine") {
+
+        if (!marker_config.contains("function")) {
+            cout << "Ficheiro de configuração sem \"function \" para o marcador : " << markerId << endl;
+            return false;
+        }
+        string function = marker_config["function"];
+        media_markers[markerId].function = function;
+
+        if (function == "slave") {
+            //do nothing
+        } else if (function == "master") {
+
+            if (!marker_config.contains("slaveId")) {
+                cout << "Ficheiro de configuração sem \"slaveId \" para o marcador : " << markerId << endl;
+                return false;
+            }
+            media_markers[markerId].slaveId = marker_config["slaveId"];
+        }
+    }
+
+    if (marker_config.contains("audio_path")) {
+        media_markers[markerId].audio_path = marker_config["audio_path"];
     }
 
     if (marker_config.contains("toLoop")) {
@@ -422,8 +458,10 @@ void setMarkerMediaProperties(int markerId) {
         media_markers[markerId].delay = marker_config["delay"];
     }
 
+
     media_markers[markerId].setDetection();
     media_markers[markerId].isUsed = true;
+    return true;
 }
 
 /**
@@ -522,10 +560,12 @@ int beginInteration() {
                     int markerId = markersIds[i];
 
                     string markerType = checkMarkerType(markerId);
-
                     if (markerType == "CONFIG") {
                         if (!config_markers[markerId].isDetected) {
-                            setMarkerConfigProperties(markerId);
+                            bool ok_config = setMarkerConfigProperties(markerId);
+                            if (!ok_config) {
+                                return -1;
+                            }
                         }
                         config_markers[markerId].markerIdPosition = i;
                         config_markers[markerId].markerId = markerId;
@@ -534,7 +574,10 @@ int beginInteration() {
 
                     } else if (markerType == "MEDIA") {
                         if (!media_markers[markerId].isDetected) {
-                            setMarkerMediaProperties(markerId);
+                            bool ok_media = setMarkerMediaProperties(markerId);
+                            if (!ok_media) {
+                                return -1;
+                            }
                         }
                         media_markers[markerId].markerIdPosition = i;
                         media_markers[markerId].markerId = markerId;
