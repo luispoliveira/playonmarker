@@ -109,6 +109,7 @@ public:
 
 };
 
+Music music;
 
 class Media_Marker : public Marker {
 
@@ -135,7 +136,7 @@ public:
     bool toLoop = false;
 
 
-    Music music;
+
     string audio_path = "./media/sounds/uiii.ogg";
     bool audio_loaded = false;
     bool audio_playing = false;
