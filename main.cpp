@@ -58,9 +58,9 @@ public:
     int markerIdPosition; //teste
 
 
-    vector<Point2f> markerCorners;
-    vector<Point> pts_dst;
-    vector<Point> pts_src;
+    vector <Point2f> markerCorners;
+    vector <Point> pts_dst;
+    vector <Point> pts_src;
 
     Mat image_src;
     bool image_src_loaded = false;
@@ -502,7 +502,7 @@ void generateMarker() {
         generateMarker();
     } else {
         Mat markerImage;
-        Ptr<cv::aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+        Ptr <cv::aruco::Dictionary> dictionary = aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
         aruco::drawMarker(dictionary, idMarker, 200, markerImage, 1);
         if (imwrite("./markers/marker" + std::to_string(idMarker) + ".png", markerImage)) {
             cout << "Marker criado com sucesso. (Verificar diretório markers)" << endl;
@@ -515,16 +515,23 @@ void generateMarker() {
 }
 
 int beginInteration() {
-    Ptr<Dictionary> dictionary = getPredefinedDictionary(DICT_6X6_250);
-    Ptr<DetectorParameters> parameters = DetectorParameters::create();
+    Ptr <Dictionary> dictionary = getPredefinedDictionary(DICT_6X6_250);
+    Ptr <DetectorParameters> parameters = DetectorParameters::create();
 
 
     VideoCapture cap;
     Mat frame;
 
+    int capOpen;
 
+    cout << "A câmara \"0\" normalmente é a câmara pricipal, se estiver a utilizar mais do que uma câmara utilize a 1."
+         << endl;
+    cout << "Escolher a câmara:";
+
+
+    cin >> capOpen;
     try {
-        cap.open(0);
+        cap.open(capOpen);
 
     } catch (...) {
         cout << "Could not open the input image/video stream" << endl;
@@ -538,7 +545,7 @@ int beginInteration() {
         imOut = frame.clone();
         try {
             vector<int> markersIds;
-            vector<vector<Point2f>> markerCorners, rejectedCandidates;
+            vector <vector<Point2f>> markerCorners, rejectedCandidates;
             detectMarkers(frame, dictionary, markerCorners, markersIds, parameters);
 
             Mat outputImage = frame.clone();
