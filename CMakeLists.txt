@@ -7,14 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 find_package(OpenCV REQUIRED )
 find_package(nlohmann_json 3.2.0 REQUIRED)
-
-
+find_package(SFML 2 REQUIRED audio)
 
 
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 include_directories(${SFML_INCLUDE_DIRS})
 
 
-
 add_executable(play_on_marker main.cpp)
-target_link_libraries( play_on_marker ${OpenCV_LIBS} nlohmann_json::nlohmann_json ${SFML_LIBRARIES})
+target_link_libraries(play_on_marker ${OpenCV_LIBS} nlohmann_json::nlohmann_json ${SFML_LIBRARIES} ${SFML_DEPENDENCIES})

@@ -1,4 +1,5 @@
-//compile g++ $(pkg-config --cflags --libs opencv4) -lmpg123 -lao -std=c++11 main.cpp
+#include <lzma.h>
+//compile g++ $(pkg-config --cflags --libs opencv4) -lsfml-audio -std=c++11 main.cpp
 //run ./a.out
 #include <opencv2/aruco.hpp>
 #include <opencv2/imgproc.hpp>
@@ -30,7 +31,16 @@ int beginInteration();
 
 const string IMAGE = "image";
 const string VIDEO = "video";
-const Scalar GREEN(0, 255, 0);
+
+const string TYPE_SINGLE = "single";
+const string TYPE_COMBINE = "combine";
+
+const string FUNCTION_SLAVE = "slave";
+const string FUNCTION_MASTER = "master";
+
+const string MARKER_TYPE_CONFIG = "config";
+const string MARKER_TYPE_MEDIA = "media";
+
 
 string CURRENT_LANGUAGE = "PT";
 string LAST_LANGUAGE = "";
@@ -81,16 +91,7 @@ public:
     string media_path;
     string language; //vai definir a linguagem
 
-
     int timeToSelect = 2;
-
-    bool playOnMarker() {
-        return true;
-    }
-
-    bool showMedia() {
-        return true;
-    }
 
     void setImgSrc() {
         if (!image_src_loaded) {
@@ -126,7 +127,7 @@ public:
 
 
     string function;
-    int slaveId;
+    int slaveId = 0;
 
     string placeholderFinal_path;
     string placeholderInicial_path;
@@ -136,12 +137,12 @@ public:
     bool toLoop = false;
 
 
-    string audio_path = "./media/sounds/uiii.ogg";
+    string audio_path = "";
     bool audio_loaded = false;
     bool audio_playing = false;
 
     VideoCapture video;
-    bool video_loaded;
+    bool video_loaded = false;
     double current_frame = 0;
 
     int timeToStop = 5;
@@ -182,7 +183,7 @@ public:
         video >> image_src;
     }
 
-    void loopSound() {
+    static void loopSound() {
         music.setLoop(true);
     }
 
@@ -257,7 +258,6 @@ public:
                     if (!(placeholderFinal_path.empty())) {
                         image_src = imread(placeholderFinal_path);
                     }
-
                 }
             }
         } else {
@@ -336,14 +336,21 @@ string checkMarkerType(int markerId) {
 
     json marker_config = ar_config[to_string(markerId)];
 
-    if (marker_config["marker_type"] == "config") {
-        return "CONFIG";
-    } else if (marker_config["marker_type"] == "media") {
-        return "MEDIA";
+    if (!marker_config.contains("marker_type")) {
+        cout << "Ficheiro de configuração sem \"marker_type \" para o marcador : " << markerId << endl;
+        return "ERRO";
     }
 
-    cout << "O marcador " << markerId << " não esté definido na configuração." << endl;
-    return "ERRO";
+    if (marker_config["marker_type"] == MARKER_TYPE_CONFIG) {
+        return MARKER_TYPE_CONFIG;
+    } else if (marker_config["marker_type"] == MARKER_TYPE_MEDIA) {
+        return MARKER_TYPE_MEDIA;
+    } else {
+        cout << "Ficheiro de configuração não reconhece o tipo \"" << marker_config["marker_type"]
+             << "\"  para o marcador : " << markerId << endl;
+        return "ERRO";
+    }
+
 
 }
 
@@ -418,9 +425,9 @@ bool setMarkerMediaProperties(int markerId) {
     string type = marker_config["type"];
     media_markers[markerId].type = type;
 
-    if (type == "single") {
+    if (type == TYPE_SINGLE) {
 //do nothing
-    } else if (type == "combine") {
+    } else if (type == TYPE_COMBINE) {
 
         if (!marker_config.contains("function")) {
             cout << "Ficheiro de configuração sem \"function \" para o marcador : " << markerId << endl;
@@ -429,9 +436,9 @@ bool setMarkerMediaProperties(int markerId) {
         string function = marker_config["function"];
         media_markers[markerId].function = function;
 
-        if (function == "slave") {
+        if (function == FUNCTION_SLAVE) {
             //do nothing
-        } else if (function == "master") {
+        } else if (function == FUNCTION_MASTER) {
 
             if (!marker_config.contains("slaveId")) {
                 cout << "Ficheiro de configuração sem \"slaveId \" para o marcador : " << markerId << endl;
@@ -517,7 +524,7 @@ int beginInteration() {
 
 
     try {
-        cap.open(1);
+        cap.open(0);
 
     } catch (...) {
         cout << "Could not open the input image/video stream" << endl;
@@ -552,7 +559,6 @@ int beginInteration() {
 
             /**
              * detação dos markers
-             * faz set do tipo de marker e das suas propriedades
              */
             if (!markersIds.empty()) {
                 for (int i = 0; i < markersIds.size(); i++) {
@@ -560,7 +566,7 @@ int beginInteration() {
                     int markerId = markersIds[i];
 
                     string markerType = checkMarkerType(markerId);
-                    if (markerType == "CONFIG") {
+                    if (markerType == MARKER_TYPE_CONFIG) {
                         if (!config_markers[markerId].isDetected) {
                             bool ok_config = setMarkerConfigProperties(markerId);
                             if (!ok_config) {
@@ -572,7 +578,7 @@ int beginInteration() {
                         config_markers[markerId].markerCorners = markerCorners.at(i);
                         config_markers[markerId].lastTimeDetected = time(nullptr);
 
-                    } else if (markerType == "MEDIA") {
+                    } else if (markerType == MARKER_TYPE_MEDIA) {
                         if (!media_markers[markerId].isDetected) {
                             bool ok_media = setMarkerMediaProperties(markerId);
                             if (!ok_media) {
@@ -625,11 +631,11 @@ int beginInteration() {
                     }
                 }
             }
-            Point textOrigin(imOut.cols / 4, imOut.rows / 4);
+            //Point textOrigin(imOut.cols / 4, imOut.rows / 4);
 
-            putText(imOut, CURRENT_LANGUAGE, textOrigin, 1, 2, GREEN);
-            cout << "CURRENT :" + CURRENT_LANGUAGE << endl;
-            cout << "LAST :" + LAST_LANGUAGE << endl;
+            //putText(imOut, CURRENT_LANGUAGE, textOrigin, 1, 2, GREEN);
+            //cout << "CURRENT :" + CURRENT_LANGUAGE << endl;
+            //cout << "LAST :" + LAST_LANGUAGE << endl;
 
             /**
              * homografias dos marcadores do tipo media
@@ -637,7 +643,7 @@ int beginInteration() {
              */
             for (auto &marker : media_markers) {
                 if (!marker.stopPlaying()) {
-                    if (marker.type == "single") {
+                    if (marker.type == TYPE_SINGLE) {
 
                         marker.setImgSrc();
 
@@ -667,15 +673,12 @@ int beginInteration() {
                          * computar homografia
                          */
                         computeMediaHomography(marker.markerId, frame);
-                    } else if (marker.type == "combine") {
-                        if (marker.function == "master") {
+                    } else if (marker.type == TYPE_COMBINE) {
+                        if (marker.function == FUNCTION_MASTER) {
 
                             int slaveId = marker.slaveId;
 
                             if (media_markers[slaveId].isDetected) {
-
-                                Marker master = marker;
-                                Marker slave = media_markers[slaveId];
 
                                 marker.setImgSrc();
 
